@@ -61,6 +61,14 @@ function App() {
     }
   }, [lead, callState]);
 
+  // Limpieza al desmontar el componente
+  useEffect(() => {
+    return () => {
+      closeRealtime();
+      if (autoHangupRef.current) window.clearTimeout(autoHangupRef.current);
+    };
+  }, []);
+
   async function startCall() {
     const callRunId = callRunIdRef.current + 1;
     callRunIdRef.current = callRunId;
@@ -75,14 +83,34 @@ function App() {
       processedTranscriptIdsRef.current = new Set();
       processedCallIdsRef.current = new Set();
 
-      const pc = new RTCPeerConnection();
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
       const dc = pc.createDataChannel("oai-events");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        if (err.name === "NotAllowedError") throw new Error("Permiso de microfono denegado. Permite el acceso en el navegador.");
+        if (err.name === "NotFoundError") throw new Error("No se encontro ningun microfono. Conecta uno e intentalo de nuevo.");
+        throw err;
+      }
+
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       const audio = new Audio();
       audio.autoplay = true;
       pc.ontrack = (event) => { audio.srcObject = event.streams[0]; };
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      pc.addEventListener("connectionstatechange", () => {
+        const state = pc.connectionState;
+        if (state === "failed" || state === "disconnected") {
+          setConnectionState(`conexion ${state}`);
+          addSystemMessage(`Conexion WebRTC ${state === "failed" ? "fallida" : "interrumpida"}.`);
+          if (state === "failed") endCall();
+        }
+      });
 
       dc.addEventListener("open", () => {
         setConnectionState("OpenAI Realtime conectado");
@@ -210,7 +238,9 @@ function App() {
     }
 
     if (event.type === "error") {
-      addSystemMessage(event.error?.message || "OpenAI devolvio un error.");
+      const msg = event.error?.message || "OpenAI devolvio un error.";
+      console.warn("[realtime error]", event.error);
+      addSystemMessage(msg);
     }
   }
 
@@ -218,12 +248,13 @@ function App() {
     if (toolName !== "registrar_campo") return;
     try {
       const { campo, valor } = JSON.parse(argsText || "{}");
-      if (!campo || valor === undefined || valor === null) return;
+      if (!campo || !LEAD_FIELDS.includes(campo)) return;
+      if (valor === undefined || valor === null) return;
       const cleanVal = String(valor).trim();
       if (!cleanVal) return;
       setLead((current) => ({ ...current, [campo]: cleanVal }));
     } catch (err) {
-      console.warn("[registrar_campo] parse error:", err);
+      console.warn("[registrar_campo] parse error:", err?.message || err);
     }
   }
 
@@ -241,13 +272,16 @@ function App() {
   }
 
   function closeRealtime() {
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+      audioRef.current = null;
+    }
     channelRef.current?.close();
     peerRef.current?.close();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     channelRef.current = null;
     peerRef.current = null;
     streamRef.current = null;
-    audioRef.current = null;
   }
 
   function scheduleAutoHangup() {
