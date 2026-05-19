@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/session",
+      "destination": "/api/session"
+    },
+    {
+      "source": "/tts",
+      "destination": "/api/tts"
+    },
+    {
+      "source": "/extract",
+      "destination": "/api/extract"
+    }
+  ]
+}
