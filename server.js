@@ -7,7 +7,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-mini";
 const OPENAI_REALTIME_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "FGY2WhTYpPnrIDTdsKH5";
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "dNjJKg63Fr5AXwIdkATa";
 
 if (!OPENAI_API_KEY) {
   console.error("ERROR: falta OPENAI_API_KEY en .env");

@@ -1,5 +1,5 @@
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "FGY2WhTYpPnrIDTdsKH5";
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "dNjJKg63Fr5AXwIdkATa";
 
 const ttsCache = new Map();
 function cacheTts(key, audio) {
