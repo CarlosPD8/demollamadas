@@ -28,6 +28,7 @@ function App() {
   const callRunIdRef = useRef(0);
   const callStateRef = useRef("esperando");
   const autoHangupRef = useRef(null);
+  const elAudioRef = useRef(null);
   const processedTranscriptIdsRef = useRef(new Set());
   const processedCallIdsRef = useRef(new Set());
 
@@ -100,6 +101,7 @@ function App() {
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       const audio = new Audio();
       audio.autoplay = true;
+      audio.volume = 0; // muted — ElevenLabs handles audio output
       pc.ontrack = (event) => { audio.srcObject = event.streams[0]; };
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
@@ -202,6 +204,29 @@ function App() {
     }
   }
 
+  async function playElevenLabsAudio(text) {
+    if (elAudioRef.current) {
+      elAudioRef.current.pause();
+      elAudioRef.current = null;
+    }
+    try {
+      const response = await fetch("/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text })
+      });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const el = new Audio(url);
+      elAudioRef.current = el;
+      el.onended = () => { URL.revokeObjectURL(url); if (elAudioRef.current === el) elAudioRef.current = null; };
+      await el.play();
+    } catch (err) {
+      console.warn("[tts]", err?.message || err);
+    }
+  }
+
   function handleRealtimeEvent(event) {
     if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
       if (event.item_id && processedTranscriptIdsRef.current.has(event.item_id)) return;
@@ -216,6 +241,15 @@ function App() {
       event.transcript
     ) {
       addAgentMessage(event.transcript);
+      playElevenLabsAudio(event.transcript);
+      return;
+    }
+
+    if (event.type === "input_audio_buffer.speech_started") {
+      if (elAudioRef.current) {
+        elAudioRef.current.pause();
+        elAudioRef.current = null;
+      }
       return;
     }
 
@@ -272,6 +306,10 @@ function App() {
   }
 
   function closeRealtime() {
+    if (elAudioRef.current) {
+      elAudioRef.current.pause();
+      elAudioRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.srcObject = null;
       audioRef.current = null;

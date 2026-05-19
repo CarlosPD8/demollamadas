@@ -1,20 +1,5 @@
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
-const OPENAI_TTS_VOICE = process.env.OPENAI_TTS_VOICE || "marin";
-
-const agentScript = new Set([
-  "Hola gracias por contactar con nuestra inmobiliaria, podria indicarme si desea comprar o vender una propiedad.",
-  "Vale muchas gracias podria indicarme su nombre.",
-  "Indiquenos su numero de telefono diga los numeros de uno en uno y nos pondremos en contacto con usted.",
-  "En que zona se encuentra o le interesa la propiedad.",
-  "Que tipo de propiedad es o esta buscando.",
-  "Podria indicarme un precio aproximado.",
-  "Que disponibilidad tiene para que un asesor le contacte o pueda concertar una visita.",
-  "Podria indicarnos un correo electronico de contacto.",
-  "Para terminar, necesita financiacion o ya cuenta con ella.",
-  "Disculpe, no he podido recoger bien el numero. Puede repetirlo de uno en uno por favor.",
-  "De acuerdo tu asistencia ha sido completada se pondran en contacto contigo lo antes posible."
-]);
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "FGY2WhTYpPnrIDTdsKH5";
 
 const ttsCache = new Map();
 function cacheTts(key, audio) {
@@ -26,20 +11,17 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).send("Metodo no permitido");
   }
-  if (!OPENAI_API_KEY) {
-    return res.status(500).send("Falta OPENAI_API_KEY");
+  if (!ELEVENLABS_API_KEY) {
+    return res.status(500).send("Falta ELEVENLABS_API_KEY");
   }
 
   const body = await readJsonBody(req);
   const input = body?.input;
-  if (!input || typeof input !== "string") {
+  if (!input || typeof input !== "string" || !input.trim()) {
     return res.status(400).send("Falta texto para sintetizar");
   }
-  if (!agentScript.has(input)) {
-    return res.status(400).send("Texto fuera del guion permitido");
-  }
 
-  const cacheKey = JSON.stringify({ model: OPENAI_TTS_MODEL, voice: OPENAI_TTS_VOICE, input });
+  const cacheKey = `${ELEVENLABS_VOICE_ID}:${input}`;
   const cachedAudio = ttsCache.get(cacheKey);
   if (cachedAudio) {
     res.setHeader("Content-Type", "audio/mpeg");
@@ -47,25 +29,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg"
       },
       body: JSON.stringify({
-        model: OPENAI_TTS_MODEL,
-        voice: OPENAI_TTS_VOICE,
-        input,
-        instructions:
-          "Lee exactamente el texto recibido, sin anadir ni quitar palabras. Voz femenina natural de recepcionista espanola, calida, profesional y tranquila. Ritmo conversacional, nada robotico.",
-        response_format: "mp3"
+        text: input,
+        model_id: "eleven_turbo_v2_5",
+        voice_settings: {
+          stability: 0.45,
+          similarity_boost: 0.80,
+          style: 0.3,
+          use_speaker_boost: true
+        }
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI TTS error:", response.status, errorText);
+      console.error("ElevenLabs TTS error:", response.status, errorText);
       return res.status(response.status).send(errorText);
     }
 
