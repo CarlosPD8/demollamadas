@@ -215,21 +215,32 @@ function App() {
       elAudioRef.current.pause();
       elAudioRef.current = null;
     }
+    // Silenciar mic mientras habla el agente para evitar eco
+    streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
     try {
       const response = await fetch("/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: text })
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
+        return;
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const el = new Audio(url);
       elAudioRef.current = el;
-      el.onended = () => { URL.revokeObjectURL(url); if (elAudioRef.current === el) elAudioRef.current = null; };
+      el.onended = () => {
+        URL.revokeObjectURL(url);
+        if (elAudioRef.current === el) elAudioRef.current = null;
+        // Reactivar mic cuando el agente termina de hablar
+        streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
+      };
       await el.play();
     } catch (err) {
       console.warn("[tts]", err?.message || err);
+      streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
     }
   }
 
@@ -255,6 +266,7 @@ function App() {
       if (elAudioRef.current) {
         elAudioRef.current.pause();
         elAudioRef.current = null;
+        streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
       }
       return;
     }
