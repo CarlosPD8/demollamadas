@@ -62,7 +62,6 @@ function App() {
     }
   }, [lead, callState]);
 
-  // Limpieza al desmontar el componente
   useEffect(() => {
     return () => {
       closeRealtime();
@@ -101,9 +100,14 @@ function App() {
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       const audio = new Audio();
       audio.autoplay = true;
-      audio.volume = 0; // muted — ElevenLabs handles audio output
+      audio.volume = 0;
       pc.ontrack = (event) => { audio.srcObject = event.streams[0]; };
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      peerRef.current = pc;
+      channelRef.current = dc;
+      streamRef.current = stream;
+      audioRef.current = audio;
 
       pc.addEventListener("connectionstatechange", () => {
         const state = pc.connectionState;
@@ -127,11 +131,6 @@ function App() {
       });
 
       dc.addEventListener("message", (event) => handleRealtimeEvent(JSON.parse(event.data)));
-
-      peerRef.current = pc;
-      channelRef.current = dc;
-      streamRef.current = stream;
-      audioRef.current = audio;
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -211,22 +210,31 @@ function App() {
   }
 
   async function playElevenLabsAudio(text) {
+    const clean = text?.trim();
+    if (!clean || callStateRef.current === "esperando") return;
+
     if (elAudioRef.current) {
       elAudioRef.current.pause();
       elAudioRef.current = null;
     }
-    // Silenciar mic mientras habla el agente para evitar eco
-    streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
+
+    const stream = streamRef.current;
+    stream?.getAudioTracks().forEach((t) => { t.enabled = false; });
+
+    const restoreMic = () => {
+      streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
+    };
+
     try {
       const response = await fetch("/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text })
+        body: JSON.stringify({ input: clean })
       });
-      if (!response.ok) {
-        streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
-        return;
-      }
+      if (!response.ok) { restoreMic(); return; }
+
+      if (callStateRef.current === "esperando") { restoreMic(); return; }
+
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const el = new Audio(url);
@@ -234,13 +242,17 @@ function App() {
       el.onended = () => {
         URL.revokeObjectURL(url);
         if (elAudioRef.current === el) elAudioRef.current = null;
-        // Reactivar mic cuando el agente termina de hablar
-        streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
+        restoreMic();
+      };
+      el.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (elAudioRef.current === el) elAudioRef.current = null;
+        restoreMic();
       };
       await el.play();
     } catch (err) {
       console.warn("[tts]", err?.message || err);
-      streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = true; });
+      restoreMic();
     }
   }
 
@@ -255,7 +267,7 @@ function App() {
     if (
       (event.type === "response.audio_transcript.done" ||
         event.type === "response.output_audio_transcript.done") &&
-      event.transcript
+      event.transcript?.trim()
     ) {
       addAgentMessage(event.transcript);
       playElevenLabsAudio(event.transcript);
