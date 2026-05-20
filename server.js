@@ -41,7 +41,7 @@ DATOS A RECOGER en este orden:
 5. propertyType — tipo de propiedad (piso, casa, chalet, local, etc.)
 6. price — precio aproximado (formato: "200.000 euros")
 7. availability — cuando puede ser contactado o visitar la propiedad
-8. financing — si necesita financiacion bancaria (usa exactamente: "Si" o "No")
+8. financing — si necesita financiacion bancaria. Registra "Si" o "No" segun la respuesta. Pregunta unicamente: "¿Necesita financiacion?"
 
 REGLAS:
 - Al inicio saluda brevemente y pregunta si quiere comprar o vender.
