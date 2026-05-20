@@ -118,6 +118,7 @@ function App() {
         setConnectionState("OpenAI Realtime conectado");
         stream.getAudioTracks().forEach((track) => { track.enabled = true; });
         addSystemMessage("Microfono activo. Habla con el asistente.");
+        dc.send(JSON.stringify({ type: "response.create" }));
       });
 
       dc.addEventListener("message", (event) => handleRealtimeEvent(JSON.parse(event.data)));
