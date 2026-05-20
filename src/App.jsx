@@ -118,7 +118,12 @@ function App() {
         setConnectionState("OpenAI Realtime conectado");
         stream.getAudioTracks().forEach((track) => { track.enabled = true; });
         addSystemMessage("Microfono activo. Habla con el asistente.");
-        dc.send(JSON.stringify({ type: "response.create" }));
+        dc.send(JSON.stringify({
+          type: "response.create",
+          response: {
+            instructions: "Di exactamente esta frase y nada más: 'Hola buenas, somos blue inmobiliaria. ¿Podría indicarme si desea comprar o vender?'"
+          }
+        }));
       });
 
       dc.addEventListener("message", (event) => handleRealtimeEvent(JSON.parse(event.data)));
